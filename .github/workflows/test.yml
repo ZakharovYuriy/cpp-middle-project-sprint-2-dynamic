@@ -1,4 +1,4 @@
-name: Tests
+name: Tests (DevContainer)
 
 on:
   push:
@@ -12,16 +12,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ libgtest-dev
-
-      - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build -j
-
-      - name: Run tests
-        run: ctest --test-dir build --output-on-failure -VV
+      - name: Build & Test inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/ci/devcontainer.json
+          runCmd: |
+            set -euxo pipefail
+            rm -rf build
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+            cmake --build build -j
+            ctest --test-dir build --output-on-failure -VV
