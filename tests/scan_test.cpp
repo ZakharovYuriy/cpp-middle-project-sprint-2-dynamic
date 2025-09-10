@@ -2,8 +2,189 @@
 #include <print>
 
 #include "scan.hpp"
+#include "types.hpp"
+
+using namespace std::literals;
+using namespace stdx::details;
+using namespace stdx;
 
 TEST(ScanTest, SimpleTest) {
     auto result = stdx::scan<std::string>("number", "{}");
-    ASSERT_FALSE(result);
+    ASSERT_TRUE(result.has_value());
+    const auto& [number] = result->scannedValues;
+    EXPECT_EQ(number, "number");
+}
+
+template<typename T1, typename T2>
+void doublePlaceholderCheck (const std::string input, const std::string format, T1 ref1, T2 ref2)
+{
+    auto result = stdx::scan<T1,T2>(input, format);
+    ASSERT_TRUE(result.has_value());
+    const auto& [val1,val2] = result->scannedValues;
+    EXPECT_EQ(val1, ref1);
+    EXPECT_EQ(val2, ref2);
+}
+
+template<typename T>
+void TypedAndGenericPlaceholderCheck (const std::string input, const std::string format, T ref)
+{
+    doublePlaceholderCheck<T,T>(input,format,ref,ref);
+}
+
+// Обёртка, которая прогоняет проверки для базового типа и всех cv-вариантов.
+template <typename T, typename... Args>
+void checkWithCV(Args&&... args) {
+    // базовый
+    TypedAndGenericPlaceholderCheck<T>(std::forward<Args>(args)...);
+    // const
+    TypedAndGenericPlaceholderCheck<const T>(std::forward<Args>(args)...);
+}
+
+constexpr std::string repeatTwice (const std::string word){
+    return word + " " + word;
+};
+
+// Форматирующая строка должна поддерживать следующие converison specifiers: 
+// d — в исходной строке на месте плейсхолдера находится целое число;
+// s — в исходной строке на месте плейсхолдера находится строка;
+// u — в исходной строке на месте плейсхолдера находится натуральное число;
+// f — в исходной строке на месте плейсхолдера находится число с плавающей точкой.
+
+// ---------- УСПЕШНЫЕ СЦЕНАРИИ ----------
+
+// Корректный разбор: формат "ID={}"  +   вход "ID=42"
+TEST(ParseSourcesTest, SimpleMatch) {
+    std::string_view fmt   = "ID={}";
+    std::string_view line  = "ID=42";
+
+    auto result = parse_sources<>(line, fmt);
+    ASSERT_TRUE(result.has_value()) << "parse_sources вернул ошибку";
+
+    const auto& [format_parts, input_parts] = *result;
+
+    ASSERT_EQ(format_parts.size(), 1u);
+    EXPECT_EQ(format_parts[0], "");         // пустой плейсхолдер
+
+    ASSERT_EQ(input_parts.size(), 1u);
+    EXPECT_EQ(input_parts[0], "42");        // число между литералами
+}
+
+// Проверка поддержки числовых типов
+//  int8_t, int16_t, int32_t, int64_t, 
+//  uint8_t, uint16_t, uint32_t, uint64_t, 
+//  float, double
+//
+// а также в cv-квалифицированные версии этих типов.
+TEST(ScanTest, NumTypesTest) {
+    checkWithCV<int8_t>(repeatTwice("-1"),"{%d} {}",-1);
+    checkWithCV<int16_t>(repeatTwice("-1"),"{%d} {}",-1);
+    checkWithCV<int32_t>(repeatTwice("-1"),"{%d} {}",-1);
+    checkWithCV<int64_t>(repeatTwice("-1"),"{%d} {}",-1);
+
+    checkWithCV<uint8_t>(repeatTwice("1"),"{%u} {}",1);
+    checkWithCV<uint16_t>(repeatTwice("1"),"{%u} {}",1);
+    checkWithCV<uint32_t>(repeatTwice("1"),"{%u} {}",1);
+    checkWithCV<uint64_t>(repeatTwice("1"),"{%u} {}",1);
+
+    checkWithCV<float>(repeatTwice("0.85"),"{%f} {}",0.85);
+    checkWithCV<double>(repeatTwice("0.85"),"{%f} {}",0.85);
+}
+
+// Проверка поддержки строковых типов
+//  std::string_view и std::string 
+//
+// а также в cv-квалифицированные версии этих типов.
+TEST(ScanTest, StringTypesTest) {
+    const std::string strWord = "HelloWorld"s;
+    std::string line = repeatTwice(strWord);
+    std::string_view strViewWord (strWord);
+    checkWithCV<std::string_view>(line,"{%s} {}",strViewWord);
+    checkWithCV<std::string>(line,"{%s} {}",strWord);
+}
+
+// ---------- ОШИБКИ/ОТКАЗЫ ----------
+
+// Расхождение литералов: формат "X={}"  +  вход "Y=10"  →  ошибка
+TEST(ParseSourcesTest, LiteralMismatch) {
+    auto result = parse_sources<>("Y=10", "X={}");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, TypesMismatch) 
+{
+    const std::string strWord = "HelloWorld"s;
+    std::string line = repeatTwice(strWord);
+    auto result = stdx::scan<int,int>(line,"{%s} {}");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, PlaceholderCount_TooFewTypes) {
+    auto result = stdx::scan<int>("10 20", "{} {}");  // типов меньше чем плейсхолдеров
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, PlaceholderCount_TooManyTypes) {
+    auto result = stdx::scan<int, int>("10", "{}");   // типов больше чем плейсхолдеров
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, Specifier_TypeIncompatibility_FloatIntoInt) {
+    auto result = stdx::scan<int>("3.14", "{%f}");    // %f несовместим с int
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, ParseError_UnsignedButNegative) {
+    auto result = stdx::scan<uint32_t>("-1", "{%u}");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, RangeError_Uint8Overflow) {
+    auto result = stdx::scan<uint8_t>("300", "{%u}");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, RangeError_Int8Underflow) {
+    auto result = stdx::scan<int8_t>("-200", "{%d}");
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, TrailingDataNotConsumed) {
+    auto result = stdx::scan<int>("42zz", "{}");      // 'zz' не описано форматом
+    ASSERT_FALSE(result.has_value());
+
+    auto result2 = stdx::scan<int>("42zz", "{}zz");   // теперь описано
+    ASSERT_TRUE(result2.has_value());
+    auto [v] = result2->scannedValues;
+    EXPECT_EQ(v, 42);
+}
+
+TEST(ScanTest, BadSpecifierRejected) {
+    auto result = stdx::scan<int>("10", "{%x}");      // %x не поддержан
+    ASSERT_FALSE(result.has_value());
+}
+
+TEST(ScanTest, UnsupportedTypes_RuntimeError) {
+    // bool не входит в список поддержанных
+    {
+        auto result = stdx::scan<bool>("1", "{}");
+        ASSERT_FALSE(result.has_value());
+    }
+
+    // long double тоже не входит
+    {
+        auto result = stdx::scan<long double>("3.14", "{%f}");
+        ASSERT_FALSE(result.has_value());
+    }
+}
+
+TEST(ScanTest, UnsupportedReferenceTypes_RuntimeError) {
+    {
+        auto result = stdx::scan<int&>("42", "{}");
+        ASSERT_FALSE(result.has_value());
+    }
+
+    {
+        auto result = stdx::scan<std::string&>("hello", "{}");
+        ASSERT_FALSE(result.has_value());
+    }
 }
