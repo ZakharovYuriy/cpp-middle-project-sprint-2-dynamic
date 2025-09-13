@@ -16,6 +16,7 @@ namespace stdx::details {
 template <typename T>
 std::expected<T, scan_error> parse_value_with_format(std::string_view input, std::string_view fmt) {
     // здесь ваш код
+    return std::unexpected(scan_error{"Unformatted text in input and format string are different"});
 }
 
 // Функция для проверки корректности входных данных и выделения из обеих строк интересующих данных для парсинга
