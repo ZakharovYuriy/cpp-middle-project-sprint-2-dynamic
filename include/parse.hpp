@@ -14,9 +14,19 @@ namespace stdx::details {
 
 // Функция для парсинга значения с учетом спецификатора формата
 template <typename T>
-std::expected<T, scan_error> parse_value_with_format(std::string_view input, std::string_view fmt) {
-    // здесь ваш код
-    return std::unexpected(scan_error{"Unformatted text in input and format string are different"});
+std::expected<T, scan_error> parse_value_with_format(std::string_view input, std::string_view fmt) 
+{
+    bool isRightDFormat = SupportedDType<T> && fmt.compare(dType)!=0;
+    bool isRightSFormat = SupportedSType<T> && fmt.compare(sType)!=0;
+    bool isRightUFormat = SupportedUType<T> && fmt.compare(uType)!=0;
+    bool isRightFFormat = SupportedFType<T> && fmt.compare(fType)!=0;
+    bool isAnyFormat = fmt.empty();
+
+    if (isRightDFormat || isRightUFormat || isRightFFormat || isRightSFormat || isAnyFormat) {
+        return parse<T>(input);
+    }else{
+        return std::unexpected(scan_error{"Unexpected Type"});
+    }
 }
 
 // Функция для проверки корректности входных данных и выделения из обеих строк интересующих данных для парсинга
@@ -68,7 +78,7 @@ parse_sources(std::string_view input, std::string_view format) {
     } else {
         input_parts.emplace_back(input);
     }
-    return std::pair{format_parts, input_parts};
+    return std::pair{input_parts, format_parts};
 }
 
 } // namespace stdx::details
