@@ -1,7 +1,6 @@
 #pragma once
 
 #include <expected>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -25,7 +24,7 @@ std::expected<T, scan_error> parse_value_with_format(std::string_view input, std
     if (isRightDFormat || isRightUFormat || isRightFFormat || isRightSFormat || isAnyFormat) {
         return parse<T>(input);
     }else{
-        return std::unexpected(scan_error{"Unexpected Type"});
+        return std::unexpected(scan_error{"The type and format do not match"});
     }
 }
 
