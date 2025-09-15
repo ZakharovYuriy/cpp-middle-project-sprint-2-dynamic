@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <print>
+#include <string>
 
 #include "scan.hpp"
 #include "types.hpp"
@@ -40,8 +41,9 @@ void checkWithCV(Args&&... args) {
     TypedAndGenericPlaceholderCheck<const T>(std::forward<Args>(args)...);
 }
 
-constexpr std::string repeatTwice (const std::string word){
-    return word + " " + word;
+constexpr std::string& repeatTwice (const std::string word, std::string& modifiedWord){
+    modifiedWord = word + " " + word;
+    return modifiedWord;
 };
 
 // Форматирующая строка должна поддерживать следующие converison specifiers: 
@@ -68,7 +70,35 @@ TEST(ParseSourcesTest, SimpleMatch) {
     ASSERT_EQ(input_parts.size(), 1u);
     EXPECT_EQ(input_parts[0], "42");        // число между литералами
 }
-/*
+
+TEST(ParseSourcesTest, MultiplePlaceholdersWithLiterals) {
+    std::string_view fmt = "user: {%s}, age: {%d}, score: {%f}";
+    std::string_view line = "user: alice, age: 30, score: 99.5";
+
+    auto r = parse_sources<>(line, fmt);
+    ASSERT_TRUE(r.has_value()) << "Expected successful parse";
+
+    const auto& [input_parts, format_parts] = *r;
+
+    ASSERT_EQ(format_parts.size(), 3u);  // 3 плейсхолдера
+    EXPECT_EQ(format_parts[0], "%s");
+    EXPECT_EQ(format_parts[1], "%d");
+    EXPECT_EQ(format_parts[2], "%f");
+
+    ASSERT_EQ(input_parts.size(), 3u);   // 3 значения в строке
+    EXPECT_EQ(input_parts[0], "alice");
+    EXPECT_EQ(input_parts[1], "30");
+    EXPECT_EQ(input_parts[2], "99.5");
+}
+
+TEST(ScanTest, DefaultTest) {
+    auto result = stdx::scan<int,float>("I want to sum 42 and 3.14 numbers.", "I want to sum {} and {%f} numbers.");
+    ASSERT_TRUE(result.has_value());
+    const auto& [val1,val2] = result->scannedValues;
+    EXPECT_EQ(val1, 42);
+    EXPECT_EQ(val2, 3.14f);
+}
+
 // Проверка поддержки числовых типов
 //  int8_t, int16_t, int32_t, int64_t, 
 //  uint8_t, uint16_t, uint32_t, uint64_t, 
@@ -76,18 +106,19 @@ TEST(ParseSourcesTest, SimpleMatch) {
 //
 // а также в cv-квалифицированные версии этих типов.
 TEST(ScanTest, NumTypesTest) {
-    checkWithCV<int8_t>(repeatTwice("-1"),"{%d} {}",-1);
-    checkWithCV<int16_t>(repeatTwice("-1"),"{%d} {}",-1);
-    checkWithCV<int32_t>(repeatTwice("-1"),"{%d} {}",-1);
-    checkWithCV<int64_t>(repeatTwice("-1"),"{%d} {}",-1);
+    std::string testVal;
+    checkWithCV<int8_t>(repeatTwice("-1",testVal),"{%d} {}",-1);
+    checkWithCV<int16_t>(repeatTwice("-1",testVal),"{%d} {}",-1);
+    checkWithCV<int32_t>(repeatTwice("-1",testVal),"{%d} {}",-1);
+    checkWithCV<int64_t>(repeatTwice("-1",testVal),"{%d} {}",-1);
 
-    checkWithCV<uint8_t>(repeatTwice("1"),"{%u} {}",1);
-    checkWithCV<uint16_t>(repeatTwice("1"),"{%u} {}",1);
-    checkWithCV<uint32_t>(repeatTwice("1"),"{%u} {}",1);
-    checkWithCV<uint64_t>(repeatTwice("1"),"{%u} {}",1);
+    checkWithCV<uint8_t>(repeatTwice("1",testVal),"{%u} {}",1);
+    checkWithCV<uint16_t>(repeatTwice("1",testVal),"{%u} {}",1);
+    checkWithCV<uint32_t>(repeatTwice("1",testVal),"{%u} {}",1);
+    checkWithCV<uint64_t>(repeatTwice("1",testVal),"{%u} {}",1);
 
-    checkWithCV<float>(repeatTwice("0.85"),"{%f} {}",0.85);
-    checkWithCV<double>(repeatTwice("0.85"),"{%f} {}",0.85);
+    checkWithCV<float>(repeatTwice("0.85",testVal),"{%f} {}",0.85);
+    checkWithCV<double>(repeatTwice("0.85",testVal),"{%f} {}",0.85);
 }
 
 // Проверка поддержки строковых типов
@@ -96,7 +127,8 @@ TEST(ScanTest, NumTypesTest) {
 // а также в cv-квалифицированные версии этих типов.
 TEST(ScanTest, StringTypesTest) {
     const std::string strWord = "HelloWorld"s;
-    std::string line = repeatTwice(strWord);
+    std::string testVal;
+    std::string line = repeatTwice(strWord,testVal);
     std::string_view strViewWord (strWord);
     checkWithCV<std::string_view>(line,"{%s} {}",strViewWord);
     checkWithCV<std::string>(line,"{%s} {}",strWord);
@@ -113,7 +145,8 @@ TEST(ParseSourcesTest, LiteralMismatch) {
 TEST(ScanTest, TypesMismatch) 
 {
     const std::string strWord = "HelloWorld"s;
-    std::string line = repeatTwice(strWord);
+    std::string testVal;
+    std::string line = repeatTwice(strWord,testVal);
     auto result = stdx::scan<int,int>(line,"{%s} {}");
     ASSERT_FALSE(result.has_value());
 }
@@ -176,16 +209,3 @@ TEST(ScanTest, UnsupportedTypes_RuntimeError) {
         ASSERT_FALSE(result.has_value());
     }
 }
-
-TEST(ScanTest, UnsupportedReferenceTypes_RuntimeError) {
-    {
-        auto result = stdx::scan<int&>("42", "{}");
-        ASSERT_FALSE(result.has_value());
-    }
-
-    {
-        auto result = stdx::scan<std::string&>("hello", "{}");
-        ASSERT_FALSE(result.has_value());
-    }
-}
-    */

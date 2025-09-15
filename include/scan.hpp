@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <expected>
 #include <tuple>
+#include <utility>
 
 #include "parse.hpp"
 #include "types.hpp"
@@ -36,23 +37,23 @@ auto createPureVal(const VecIn& vecIn, const VecOut& vecOut) {
 
 // ---------- ВАЖНО: impl, который ДЕДУЦИРУЕТ Is... из Positions<Is...>
 template <typename VecIn, typename VecOut, typename... Ts, std::size_t... Is>
-auto makeFilledExpectedTuple_impl(const VecIn& vecIn, const VecOut& vecOut, Positions<Is...>) {
-    return std::tuple{ createExpectedVal<VecIn, VecOut, Ts, Is>(vecIn, vecOut)... };
+auto makeFilledExpectedTuple_impl(VecIn&& vecIn, VecOut&& vecOut, Positions<Is...>) {
+    return std::tuple{ createExpectedVal<VecIn, VecOut, Ts, Is>(std::forward<VecIn>(vecIn), std::forward<VecOut>(vecOut))... };
 }
 
 template <typename VecIn, typename VecOut, typename... Ts>
-auto makeFilledExpectedTuple(const VecIn& vecIn, const VecOut& vecOut) {
-    return makeFilledExpectedTuple_impl<VecIn, VecOut, Ts...>(vecIn, vecOut, CreatePositions<sizeof...(Ts)>{});
+auto makeFilledExpectedTuple(VecIn&& vecIn, VecOut&& vecOut) {
+    return makeFilledExpectedTuple_impl<VecIn, VecOut, Ts...>(std::forward<VecIn>(vecIn), std::forward<VecOut>(vecOut), CreatePositions<sizeof...(Ts)>{});
 }
 
 template <typename VecIn, typename VecOut, typename... Ts, std::size_t... Is>
-auto makeFilledPureValTuple_impl(const VecIn& vecIn, const VecOut& vecOut, Positions<Is...>) {
-    return std::tuple{ createPureVal<VecIn, VecOut, Ts, Is>(vecIn, vecOut)... };
+auto makeFilledPureValTuple_impl(VecIn&& vecIn, VecOut&& vecOut, Positions<Is...>) {
+    return std::tuple{ createPureVal<VecIn, VecOut, Ts, Is>(std::forward<VecIn>(vecIn), std::forward<VecOut>(vecOut))... };
 }
 
 template <typename VecIn, typename VecOut, typename... Ts>
-auto makeFilledPureValTuple(const VecIn& vecIn, const VecOut& vecOut) {
-    return makeFilledPureValTuple_impl<VecIn, VecOut, Ts...>(vecIn, vecOut, CreatePositions<sizeof...(Ts)>{});
+auto makeFilledPureValTuple(VecIn&& vecIn, VecOut&& vecOut) {
+    return makeFilledPureValTuple_impl<VecIn, VecOut, Ts...>(std::forward<VecIn>(vecIn), std::forward<VecOut>(vecOut), CreatePositions<sizeof...(Ts)>{});
 }
 
 template <typename... Ts>
@@ -62,18 +63,20 @@ std::expected<details::scan_result<Ts...>, details::scan_error> scan(std::string
     if (!parsedData.has_value()) return std::unexpected(parsedData.error());
     const auto& [vecIn,vecOut] = parsedData.value();
 
-    auto expected_tuple = makeFilledExpectedTuple<decltype(vecIn),decltype(vecOut),Ts...>(vecIn, vecOut);
+    if (vecIn.size() != sizeof...(Ts)) return std::unexpected(details::scan_error{"The number of types does not match the number of placeholders"});
+
+    auto expected_tuple = makeFilledExpectedTuple<decltype(vecIn),decltype(vecOut),Ts...>(std::forward<decltype(vecIn)>(vecIn), std::forward<decltype(vecIn)>(vecOut));
     bool allElementsAreExpected = true;
     std::apply([&allElementsAreExpected](auto&&... elems) {
         allElementsAreExpected = ((elems.has_value()) && ...); 
     }, expected_tuple);
 
-    details::scan_result<Ts...> result;
+    
     if (allElementsAreExpected){
-        result.scannedValues = makeFilledPureValTuple<decltype(vecIn),decltype(vecOut),Ts...>(vecIn, vecOut);
+        details::scan_result<Ts...> result{ makeFilledPureValTuple<decltype(vecIn),decltype(vecOut),Ts...>(std::forward<decltype(vecIn)>(vecIn), std::forward<decltype(vecIn)>(vecOut))};
         return result;
     }
-    return std::unexpected(details::scan_error{"Dumb implementation"});
+    return std::unexpected(details::scan_error{"Some formats are wrong"});
 }
 
 } // namespace stdx

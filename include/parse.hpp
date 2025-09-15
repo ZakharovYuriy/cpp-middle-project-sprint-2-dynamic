@@ -16,10 +16,10 @@ namespace stdx::details {
 template <typename T>
 std::expected<T, scan_error> parse_value_with_format(std::string_view input, std::string_view fmt) 
 {
-    bool isRightDFormat = SupportedDType<T> && fmt.compare(dType)!=0;
-    bool isRightSFormat = SupportedSType<T> && fmt.compare(sType)!=0;
-    bool isRightUFormat = SupportedUType<T> && fmt.compare(uType)!=0;
-    bool isRightFFormat = SupportedFType<T> && fmt.compare(fType)!=0;
+    bool isRightDFormat = SupportedDType<T> && (fmt == dType);
+    bool isRightSFormat = SupportedSType<T> && (fmt == sType);
+    bool isRightUFormat = SupportedUType<T> && (fmt == uType);
+    bool isRightFFormat = SupportedFType<T> && (fmt == fType);
     bool isAnyFormat = fmt.empty();
 
     if (isRightDFormat || isRightUFormat || isRightFFormat || isRightSFormat || isAnyFormat) {

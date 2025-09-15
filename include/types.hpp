@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <tuple>
 #include <string>
-#include <stdexcept>
 
 namespace stdx::details {
 
@@ -48,15 +47,16 @@ template <typename T>
 concept AnySupportedType = SupportedDType<T> || SupportedSType<T> || SupportedUType<T> || SupportedFType<T>;
 
 template <typename T>
-requires (!AnySupportedType<T>)
+requires (!AnySupportedType<T> && !std::is_reference_v<T>)
 std::expected<T, scan_error> parse(std::string_view input){
     return std::unexpected(scan_error{"Unexpected Type"});
 }
 
 template <typename T>
-requires SupportedDType<T> || SupportedUType<T> || SupportedFType<T>
+requires (SupportedDType<T> || SupportedUType<T> || SupportedFType<T>) && (!std::is_reference_v<T>)
 std::expected<T, scan_error> parse(std::string_view input){
-    T value{};
+    using T2 = std::remove_const<T>::type;
+    T2 value{};
     auto [ptr, ec] = std::from_chars(input.data(), input.data() + input.size(), value);
 
     if (ec == std::errc::invalid_argument)
@@ -66,16 +66,13 @@ std::expected<T, scan_error> parse(std::string_view input){
     if (ptr != input.data() + input.size())
         return std::unexpected(scan_error{"Invalid Type: extra characters"});
     
-    return value;
+    return T{value};
 }
 
 template <typename T>
-requires SupportedSType<T>
+requires (SupportedSType<T>) && (!std::is_reference_v<T>)
 std::expected<T, scan_error> parse(std::string_view input){
-    if constexpr (std::is_same_v<T, std::string>)
-        return std::string{input};
-    else
-        return input;
+        return T{input};
 }
 
 } // namespace stdx::details
