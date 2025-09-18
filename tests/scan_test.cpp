@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <print>
 #include <string>
+#include <type_traits>
 
 #include "scan.hpp"
 #include "types.hpp"
@@ -16,18 +17,38 @@ TEST(ScanTest, SimpleTest) {
     EXPECT_EQ(number, "number");
 }
 
+template<typename T1>
+void compareVals (const T1& val1, const T1& val2)
+{
+    EXPECT_EQ(val1, val2);
+}
+
+template<typename T>
+requires (std::is_same_v<T, float>)
+void compareVals (const T& val1, const T& val2)
+{
+    EXPECT_FLOAT_EQ(val1, val2);
+}
+
+template<typename T>
+requires (std::is_same_v<T, double>)
+void compareVals (const T& val1, const T& val2)
+{
+    EXPECT_DOUBLE_EQ(val1, val2);
+}
+
 template<typename T1, typename T2>
-void doublePlaceholderCheck (const std::string input, const std::string format, T1 ref1, T2 ref2)
+void doublePlaceholderCheck (const std::string& input, const std::string& format, T1 ref1, T2 ref2)
 {
     auto result = stdx::scan<T1,T2>(input, format);
     ASSERT_TRUE(result.has_value());
     const auto& [val1,val2] = result->scannedValues;
-    EXPECT_EQ(val1, ref1);
-    EXPECT_EQ(val2, ref2);
+    compareVals(val1, ref1);
+    compareVals(val2, ref2);
 }
 
 template<typename T>
-void TypedAndGenericPlaceholderCheck (const std::string input, const std::string format, T ref)
+void TypedAndGenericPlaceholderCheck (const std::string& input, const std::string& format, T ref)
 {
     doublePlaceholderCheck<T,T>(input,format,ref,ref);
 }
@@ -41,8 +62,8 @@ void checkWithCV(Args&&... args) {
     TypedAndGenericPlaceholderCheck<const T>(std::forward<Args>(args)...);
 }
 
-constexpr std::string& repeatTwice (const std::string word, std::string& modifiedWord){
-    modifiedWord = word + " " + word;
+constexpr std::string& repeatTwice (const std::string& word, std::string& modifiedWord){
+    modifiedWord = std::format("{} {}", word, word );
     return modifiedWord;
 };
 
@@ -96,7 +117,7 @@ TEST(ScanTest, DefaultTest) {
     ASSERT_TRUE(result.has_value());
     const auto& [val1,val2] = result->scannedValues;
     EXPECT_EQ(val1, 42);
-    EXPECT_EQ(val2, 3.14f);
+    EXPECT_FLOAT_EQ(val2, 3.14f);
 }
 
 // Проверка поддержки числовых типов

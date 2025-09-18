@@ -35,7 +35,7 @@ auto createVal(const VecIn& vecIn, const VecFmt& vecFmt) {
 }
 
 template <bool Unwrap, typename VecIn, typename VecFmt, typename... Ts, std::size_t... Is>
-auto makeFilledTuple_impl(VecIn&& vecIn, VecFmt&& vecFmt, std::index_sequence<Is...>) {
+auto makeFilledTuple_impl(VecIn&& vecIn, VecFmt&& vecFmt, Positions<Is...>) {
     return std::tuple{
         createVal<Unwrap, VecIn, VecFmt, Ts, Is>(
             std::forward<VecIn>(vecIn), std::forward<VecFmt>(vecFmt)
@@ -47,7 +47,7 @@ template <typename VecIn, typename VecFmt, typename... Ts>
 auto makeFilledExpectedTuple(VecIn&& vecIn, VecFmt&& vecFmt) {
     return makeFilledTuple_impl<false, VecIn, VecFmt, Ts...>(
         std::forward<VecIn>(vecIn), std::forward<VecFmt>(vecFmt),
-        std::make_index_sequence<sizeof...(Ts)>{}
+        CreatePositions<sizeof...(Ts)>{}
     );
 }
 
@@ -55,7 +55,7 @@ template <typename VecIn, typename VecFmt, typename... Ts>
 auto makeFilledPureValTuple(VecIn&& vecIn, VecFmt&& vecFmt) {
     return makeFilledTuple_impl<true, VecIn, VecFmt, Ts...>(
         std::forward<VecIn>(vecIn), std::forward<VecFmt>(vecFmt),
-        std::make_index_sequence<sizeof...(Ts)>{}
+        CreatePositions<sizeof...(Ts)>{}
     );
 }
 
@@ -71,10 +71,9 @@ std::expected<details::scan_result<Ts...>, details::scan_error> scan(std::string
     auto expected_tuple = makeFilledExpectedTuple<decltype(vecIn),decltype(vecFmt),Ts...>(std::forward<decltype(vecIn)>(vecIn), std::forward<decltype(vecIn)>(vecFmt));
     std::vector<scan_error> errors;
     std::apply([&errors](auto&&... elems) {
-        ([&errors](auto&& elem){if (!elem.has_value()) errors.push_back(elem.error());}(elems), ...); 
+        ([&errors](auto&& elem){if (!elem.has_value()) errors.push_back(std::forward<decltype(elem.error())>(elem.error()));}(elems), ...); 
     }, expected_tuple);
 
-    
     if (errors.empty()){
         details::scan_result<Ts...> result{ makeFilledPureValTuple<decltype(vecIn),decltype(vecFmt),Ts...>(std::forward<decltype(vecIn)>(vecIn), std::forward<decltype(vecIn)>(vecFmt))};
         return result;
