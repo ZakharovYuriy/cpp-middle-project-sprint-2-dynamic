@@ -24,20 +24,16 @@ struct PositionCounter<0,PositionNumsCollector...> {
 template <size_t N>
 using CreatePositions = typename PositionCounter<N>::positions;
 
-template <bool Unwrap, typename VecIn, typename VecFmt, typename T, std::size_t Position>
+template <typename VecIn, typename VecFmt, typename T, std::size_t Position>
 auto createVal(const VecIn& vecIn, const VecFmt& vecFmt) {
     using namespace stdx::details;
-    if constexpr (Unwrap) {
-        return parse_value_with_format<T>(vecIn[Position], vecFmt[Position]).value();
-    } else {
-        return parse_value_with_format<T>(vecIn[Position], vecFmt[Position]);
-    }
+    return parse_value_with_format<T>(vecIn[Position], vecFmt[Position]);
 }
 
-template <bool Unwrap, typename VecIn, typename VecFmt, typename... Ts, std::size_t... Is>
+template <typename VecIn, typename VecFmt, typename... Ts, std::size_t... Is>
 auto makeFilledTuple_impl(VecIn&& vecIn, VecFmt&& vecFmt, Positions<Is...>) {
     return std::tuple{
-        createVal<Unwrap, VecIn, VecFmt, Ts, Is>(
+        createVal<VecIn, VecFmt, Ts, Is>(
             std::forward<VecIn>(vecIn), std::forward<VecFmt>(vecFmt)
         )...
     };
@@ -45,15 +41,7 @@ auto makeFilledTuple_impl(VecIn&& vecIn, VecFmt&& vecFmt, Positions<Is...>) {
 
 template <typename VecIn, typename VecFmt, typename... Ts>
 auto makeFilledExpectedTuple(VecIn&& vecIn, VecFmt&& vecFmt) {
-    return makeFilledTuple_impl<false, VecIn, VecFmt, Ts...>(
-        std::forward<VecIn>(vecIn), std::forward<VecFmt>(vecFmt),
-        CreatePositions<sizeof...(Ts)>{}
-    );
-}
-
-template <typename VecIn, typename VecFmt, typename... Ts>
-auto makeFilledPureValTuple(VecIn&& vecIn, VecFmt&& vecFmt) {
-    return makeFilledTuple_impl<true, VecIn, VecFmt, Ts...>(
+    return makeFilledTuple_impl<VecIn, VecFmt, Ts...>(
         std::forward<VecIn>(vecIn), std::forward<VecFmt>(vecFmt),
         CreatePositions<sizeof...(Ts)>{}
     );
@@ -75,11 +63,13 @@ std::expected<details::scan_result<Ts...>, details::scan_error> scan(std::string
     }, expected_tuple);
 
     if (errors.empty()){
-        details::scan_result<Ts...> result{ makeFilledPureValTuple<decltype(vecIn),decltype(vecFmt),Ts...>(std::forward<decltype(vecIn)>(vecIn), std::forward<decltype(vecIn)>(vecFmt))};
+        details::scan_result<Ts...> result{
+            std::apply([](auto&&... elems) {return  std::make_tuple(elems.value() ...);}, expected_tuple) 
+        };
         return result;
     }
     std::string message = "Some formats errors:'\n'";
-    for (const auto& error : errors){
+    for (const auto& error : errors){ 
         message += error.message + '\n';
     }
     return std::unexpected(details::scan_error{message});
