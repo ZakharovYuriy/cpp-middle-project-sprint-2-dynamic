@@ -1,7 +1,6 @@
 #pragma once
 
 #include <expected>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -10,12 +9,50 @@
 
 namespace stdx::details {
 
-// здесь ваш код
+template <typename T>
+requires (!AnySupportedType<T> || std::is_reference_v<T>)
+std::expected<T, scan_error> parse(std::string_view input){
+    return std::unexpected(scan_error{"Unexpected Type"});
+}
+
+template <typename T>
+requires (SupportedDType<T> || SupportedUType<T> || SupportedFType<T>) && (!std::is_reference_v<T>)
+std::expected<T, scan_error> parse(std::string_view input){
+    using T2 = std::remove_const<T>::type;
+    T2 value{};
+    auto [ptr, ec] = std::from_chars(input.data(), input.data() + input.size(), value);
+
+    if (ec == std::errc::invalid_argument)
+        return std::unexpected(scan_error{"Invalid Type: not a number"});
+    if (ec == std::errc::result_out_of_range)
+        return std::unexpected(scan_error{"Invalid Type: out of range"});
+    if (ptr != input.data() + input.size())
+        return std::unexpected(scan_error{"Invalid Type: extra characters"});
+    
+    return T{value};
+}
+
+template <typename T>
+requires (SupportedSType<T>) && (!std::is_reference_v<T>)
+std::expected<T, scan_error> parse(std::string_view input){
+        return T{input};
+}
 
 // Функция для парсинга значения с учетом спецификатора формата
 template <typename T>
-std::expected<T, scan_error> parse_value_with_format(std::string_view input, std::string_view fmt) {
-    // здесь ваш код
+std::expected<T, scan_error> parse_value_with_format(std::string_view input, std::string_view fmt) 
+{
+    bool isRightDFormat = SupportedDType<T> && (fmt == dType);
+    bool isRightSFormat = SupportedSType<T> && (fmt == sType);
+    bool isRightUFormat = SupportedUType<T> && (fmt == uType);
+    bool isRightFFormat = SupportedFType<T> && (fmt == fType);
+    bool isAnyFormat = fmt.empty();
+
+    if (isRightDFormat || isRightUFormat || isRightFFormat || isRightSFormat || isAnyFormat) {
+        return parse<T>(input);
+    }else{
+        return std::unexpected(scan_error{"The type and format do not match"});
+    }
 }
 
 // Функция для проверки корректности входных данных и выделения из обеих строк интересующих данных для парсинга
@@ -67,7 +104,7 @@ parse_sources(std::string_view input, std::string_view format) {
     } else {
         input_parts.emplace_back(input);
     }
-    return std::pair{format_parts, input_parts};
+    return std::pair{input_parts, format_parts};
 }
 
 } // namespace stdx::details
