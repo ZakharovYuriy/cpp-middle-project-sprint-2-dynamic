@@ -21,10 +21,10 @@ struct scan_result {
     std::tuple<Ts ...> scannedValues;
 };
 
-constexpr char dType[] = "%d";
-constexpr char sType[] = "%s";
-constexpr char uType[] = "%u";
-constexpr char fType[] = "%f";
+inline constexpr char dType[] = "%d";
+inline constexpr char sType[] = "%s";
+inline constexpr char uType[] = "%u";
+inline constexpr char fType[] = "%f";
 
 template <typename T, typename ...Ts>
 consteval bool isSupportedType(){
