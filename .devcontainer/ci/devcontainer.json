@@ -1,0 +1,5 @@
+{
+  "name": "Ubuntu25.04 with GCC15 (CI)",
+  "build": { "dockerfile": "../Dockerfile", "context": "../." },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+}

@@ -7,15 +7,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Launch DymanicScan",
-            "program": "${workspaceFolder}/build/DymanicScan",
+            "name": "Launch scan_tests",
+            "program": "${workspaceFolder}/build/scan_tests",
             "args": [
                 "-i",
                 "input.txt",
                 "--command",
                 "checksum"
             ],
-            "cwd": "${workspaceFolder}/build"
+            "cwd": "${workspaceFolder}/build",
+            "preLaunchTask": "CMake: Build Debug",
+            "initCommands": ["settings set target.disable-aslr false"]
         }
 
     ]
